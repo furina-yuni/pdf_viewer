@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import { Clock3, FileText, FolderOpen, LoaderCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Clock3, FileText, FolderOpen, LoaderCircle, Quote, X } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { getHeightFitScale } from "../lib/pdfScale";
@@ -30,6 +30,11 @@ type Props = {
 
 export function PdfViewer(props: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [selectionAction, setSelectionAction] = useState<{
+    text: string;
+    left: number;
+    top: number;
+  } | null>(null);
   const navigationTargetRef = useRef<number | null>(null);
   const navigationTimerRef = useRef<number | null>(null);
   const currentPageRef = useRef(1);
@@ -133,6 +138,21 @@ export function PdfViewer(props: Props) {
     [],
   );
 
+  useEffect(() => {
+    setSelectionAction(null);
+    window.getSelection()?.removeAllRanges();
+  }, [props.file]);
+
+  useEffect(() => {
+    const dismissWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !selectionAction) return;
+      setSelectionAction(null);
+      window.getSelection()?.removeAllRanges();
+    };
+    window.addEventListener("keydown", dismissWithEscape);
+    return () => window.removeEventListener("keydown", dismissWithEscape);
+  }, [selectionAction]);
+
   if (!props.file) {
     return (
       <main className="viewer-empty">
@@ -184,7 +204,13 @@ export function PdfViewer(props: Props) {
     <main
       className="viewer-scroll"
       ref={containerRef}
-      onMouseUp={() => {
+      onMouseDown={(event) => {
+        if (!(event.target as HTMLElement).closest(".selection-action")) {
+          setSelectionAction(null);
+        }
+      }}
+      onMouseUp={(event) => {
+        if ((event.target as HTMLElement).closest(".selection-action")) return;
         const root = containerRef.current;
         const selection = window.getSelection();
         if (
@@ -197,9 +223,55 @@ export function PdfViewer(props: Props) {
           return;
         }
         const text = selection.toString().replace(/\s+/g, " ").trim();
-        if (text) props.onTextSelection(text.slice(0, 20_000));
+        if (!text) return;
+
+        const rangeRect = selection.getRangeAt(0).getBoundingClientRect();
+        const rootRect = root.getBoundingClientRect();
+        const actionWidth = 132;
+        const left = Math.min(
+          root.scrollWidth - actionWidth - 12,
+          Math.max(12, rangeRect.left - rootRect.left + root.scrollLeft + rangeRect.width / 2 - actionWidth / 2),
+        );
+        const preferredTop = rangeRect.bottom - rootRect.top + root.scrollTop + 10;
+        const top = preferredTop + 44 < root.scrollTop + root.clientHeight
+          ? preferredTop
+          : rangeRect.top - rootRect.top + root.scrollTop - 44;
+        setSelectionAction({ text: text.slice(0, 20_000), left, top });
       }}
     >
+      {selectionAction && (
+        <div
+          className="selection-action"
+          style={{ left: selectionAction.left, top: selectionAction.top }}
+          role="toolbar"
+          aria-label="선택 텍스트 작업"
+        >
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              props.onTextSelection(selectionAction.text);
+              setSelectionAction(null);
+              window.getSelection()?.removeAllRanges();
+            }}
+          >
+            <Quote size={14} />
+            인용에 추가
+          </button>
+          <button
+            type="button"
+            className="selection-action-close"
+            aria-label="선택 취소"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              setSelectionAction(null);
+              window.getSelection()?.removeAllRanges();
+            }}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
       <Document
         file={props.file}
         onLoadSuccess={props.onLoad}

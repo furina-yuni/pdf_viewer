@@ -190,7 +190,33 @@ button { color: inherit; }
 }
 .recent-error { color: #e5a4aa; }
 
-.viewer-scroll { overflow: auto; min-width: 0; padding: 0 24px; scroll-behavior: smooth; background: var(--viewer-background, #343941); }
+.viewer-scroll { position: relative; overflow: auto; min-width: 0; padding: 0 24px; scroll-behavior: smooth; background: var(--viewer-background, #343941); }
+.viewer-scroll .react-pdf__Page__textContent ::selection {
+  color: transparent;
+  background: rgba(230, 178, 70, 0.34);
+  text-shadow: none;
+}
+.selection-action {
+  position: absolute; z-index: 12; height: 34px; padding: 3px; display: flex; align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px;
+  color: #f5f7fa; background: rgba(31, 38, 49, 0.96);
+  box-shadow: 0 8px 24px rgba(14, 18, 25, 0.28); backdrop-filter: blur(10px);
+  animation: selection-action-in 120ms ease-out;
+}
+.selection-action button {
+  height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 7px; color: inherit; background: transparent;
+  font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer;
+}
+.selection-action button:first-child:hover { background: rgba(255, 255, 255, 0.1); }
+.selection-action .selection-action-close {
+  width: 27px; padding: 0; justify-content: center; color: #aeb6c2;
+}
+.selection-action .selection-action-close:hover { color: white; background: rgba(255, 255, 255, 0.1); }
+@keyframes selection-action-in {
+  from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .react-pdf__Document { display: flex; flex-direction: column; align-items: center; gap: 22px; }
 .pdf-page-shell { position: relative; width: fit-content; background: white; box-shadow: 0 3px 18px rgba(31, 38, 49, 0.14); }
 .page-number {
