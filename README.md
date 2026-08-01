@@ -1,91 +1,41 @@
 # Study PDF AI
 
-PDF를 읽으면서 AI와 대화하고 공부할 수 있는 데스크톱 학습 도우미입니다.
+Study PDF AI는 PDF를 읽으며 AI에게 바로 질문하고 공부할 수 있는 데스크톱 앱입니다.
+복잡한 논문, 전공 교재, 강의 자료를 볼 때 현재 읽고 있는 내용과 연결해 질문할 수 있도록 만들었습니다.
 
-전체 PDF를 미리 서버로 보내거나 임베딩하지 않습니다. 현재 보고 있는 페이지와 사용자가
-정한 앞·뒤 페이지 범위만 AI에 전달하므로, 긴 문서도 빠르게 참고하고 토큰 사용량을 줄일 수
-있습니다.
+## 이런 점이 편리합니다
 
-## 주요 기능
+- PDF를 보면서 오른쪽 AI 창에서 바로 질문할 수 있습니다.
+- AI는 PDF 전체가 아니라 현재 페이지와 설정한 앞뒤 참고 페이지만 읽습니다. 긴 PDF도 더 빠르고 가볍게 사용할 수 있습니다.
+- PDF에서 문장을 드래그해 질문에 추가할 수 있습니다.
+- AI 답변의 Markdown과 수식(LaTeX)을 보기 좋게 표시합니다.
+- OpenAI와 Google Gemini를 사용할 수 있습니다.
+- 참고 페이지 수, 화면 비율, 배경색, API 설정은 다음에 앱을 열어도 유지됩니다.
+- 최근에 열었던 PDF를 시작 화면에서 다시 열 수 있습니다.
 
-- PDF 페이지 뷰어와 독립적으로 스크롤되는 AI 채팅 사이드바
-- 현재 페이지 기준 앞·뒤 참고 범위 설정
-- 선택한 PDF 텍스트를 질문에 바로 첨부
-- OpenAI 및 Google Gemini API 지원
-- 수식이 포함된 AI 답변의 Markdown 및 LaTeX 렌더링
-- 채팅창 너비, 참고 범위, 화면 비율, 배경색, API 설정 저장
-- 최근에 열어 본 PDF 목록에서 원래 파일을 바로 다시 열기
-- Windows 설치 파일 형태의 Electron 데스크톱 앱 빌드
+## 사용 방법
 
-## 동작 방식
+1. 앱을 열고 **PDF 열기**를 눌러 공부할 파일을 선택합니다.
+2. 상단 바의 **AI 참고**에서 현재 페이지 앞과 뒤로 몇 페이지를 AI가 참고할지 정합니다.
+3. 오른쪽 AI 창에 질문을 입력하고 전송합니다.
+4. PDF의 특정 문장이 궁금하면 문장을 드래그한 뒤, 선택한 내용을 질문에 추가해 더 정확하게 물어볼 수 있습니다.
 
-질문을 보내면 앱은 현재 페이지와 참고 범위에 포함되는 페이지만 텍스트로 추출합니다.
-추출한 텍스트와 질문을 AI에 보내고, 답변은 실시간으로 채팅창에 표시합니다. 따라서 PDF 전체를
-처음부터 읽어들이는 방식보다 대기 시간과 문맥 비용을 줄일 수 있습니다.
+PDF와 AI 채팅은 각각 따로 스크롤됩니다. PDF를 읽는 동안에도 대화 내용을 자유롭게 위아래로 확인할 수 있습니다.
 
-> API 키는 Electron 앱의 사용자 설정 영역에 저장됩니다. 민감한 키가 포함된 `backend/.env`는
-> Git에 포함되지 않습니다.
+## AI 연결 설정
 
-## 준비
+상단 바의 **API 설정**에서 사용할 서비스를 선택하고 API 키와 모델을 입력하세요.
 
-Python 백엔드는 별도의 Conda 환경 `pdf-viewer`를 사용합니다.
+- OpenAI
+- Google Gemini
 
-```powershell
-conda env create -f environment.yml
-npm install
-```
+API 키는 앱의 사용자 설정에 저장됩니다. 다른 사람과 컴퓨터를 함께 사용한다면 키 관리에 주의하세요.
 
-이미 환경을 만든 경우:
+## 화면 설정
 
-```powershell
-conda run -n pdf-viewer pip install -e "./backend[dev]"
-```
+- **배경 설정**에서 PDF와 AI 채팅창을 포함한 앱 전체의 배경색을 바꿀 수 있습니다.
+- 화면 비율은 상단 바에서 직접 입력하거나 조절할 수 있습니다.
+- AI 창의 왼쪽 경계를 드래그하면 채팅창 너비를 원하는 만큼 조절할 수 있습니다.
+- `Shift + F`를 누르면 상단 바를 숨기거나 다시 표시할 수 있습니다.
 
-## 개발 실행
-
-```powershell
-npm run dev
-```
-
-브라우저에서 `http://localhost:5173`을 엽니다. 기본 설정은 API 키 없이 작동하는
-모의 AI 응답입니다.
-
-실제 AI API는 화면 상단의 `API 설정`에서 OpenAI 또는 Google Gemini를 선택하고
-모델과 API 키를 저장하면 됩니다. Gemini는 Google의 OpenAI 호환 엔드포인트를 사용합니다.
-
-환경 파일로 직접 OpenAI 호환 API를 설정하려면 `backend/.env.example`을
-`backend/.env`로 복사하고 다음 값을 설정합니다.
-
-```dotenv
-LLM_PROVIDER=openai
-LLM_API_KEY=...
-LLM_MODEL=gpt-4.1-mini
-LLM_BASE_URL=https://api.openai.com/v1
-```
-
-## 검증
-
-```powershell
-npm test
-npm run build
-conda run -n pdf-viewer pytest backend/tests
-conda run -n pdf-viewer ruff check backend
-```
-
-## Electron 개발 실행
-
-```powershell
-npm run electron:dev
-```
-
-현재 Electron 개발 모드는 로컬 FastAPI 서버를 함께 실행합니다. 배포용 빌드에서 Python
-백엔드는 sidecar 실행 파일로 포함됩니다.
-
-## Windows 설치 파일 만들기
-
-```powershell
-npm run electron:build
-```
-
-빌드가 끝나면 `release/Study-PDF-AI-Setup-<version>.exe`가 생성됩니다. `release/` 폴더는
-Git에 올리지 않으며, 배포할 설치 파일은 GitHub Releases에 첨부합니다.
+Study PDF AI와 함께 PDF를 읽고, 핵심을 정리하고, 막히는 내용을 바로 질문해 보세요.
