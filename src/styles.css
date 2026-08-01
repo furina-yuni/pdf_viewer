@@ -318,13 +318,22 @@ button { color: inherit; }
   background: transparent; font-size: 13px; line-height: 1.5;
 }
 .composer textarea::placeholder { color: var(--theme-subtle, #89919c); }
+.selection-attachments {
+  display: grid; gap: 6px; max-height: 168px; margin-bottom: 8px; padding-right: 2px;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
 .selection-attachment {
   display: grid; grid-template-columns: 19px minmax(0, 1fr) 25px; align-items: start;
-  gap: 6px; max-height: 92px; margin-bottom: 8px; padding: 9px; overflow: hidden;
+  gap: 7px; max-height: 92px; padding: 9px; overflow: hidden;
   border: 1px solid var(--theme-border, #cfd6df); border-radius: 9px;
   color: var(--theme-muted, #526175); background: var(--surface-background, #eef2f6);
 }
-.selection-attachment > svg { margin-top: 2px; }
+.selection-attachment-icon { position: relative; margin-top: 2px; color: #60718a; }
+.selection-attachment-icon span {
+  position: absolute; right: -3px; bottom: -4px; min-width: 12px; height: 12px; padding: 0 2px;
+  display: grid; place-items: center; border-radius: 6px; color: white; background: #40577b;
+  font-size: 7px; font-weight: 800;
+}
 .selection-attachment p {
   display: -webkit-box; margin: 0; overflow: hidden; font-size: 11px; line-height: 1.5;
   -webkit-box-orient: vertical; -webkit-line-clamp: 4;

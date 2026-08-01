@@ -37,7 +37,7 @@ function App() {
   const [recentError, setRecentError] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
-  const [selectedText, setSelectedText] = useState("");
+  const [selectedTexts, setSelectedTexts] = useState<{ id: string; text: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [, setNotice] = useState("");
   const textCache = useRef(new Map<number, string>());
@@ -133,7 +133,7 @@ function App() {
     currentPageRef.current = 1;
     setNavigationRequest(null);
     setMessages([]);
-    setSelectedText("");
+    setSelectedTexts([]);
     setNotice("");
   }, []);
 
@@ -199,7 +199,9 @@ function App() {
 
     const pageSnapshot = currentPage;
     const rangeSnapshot = getPageRange(pageSnapshot, document.numPages, before, after);
-    const attachedSelection = selectedText.trim() || null;
+    const attachedSelection = selectedTexts.length > 0
+      ? selectedTexts.map((item, index) => `[인용 ${index + 1}]\n${item.text}`).join("\n\n")
+      : null;
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -214,7 +216,7 @@ function App() {
       { id: assistantId, role: "assistant", content: "" },
     ]);
     setQuestion("");
-    setSelectedText("");
+    setSelectedTexts([]);
     setBusy(true);
     setNotice("참고 페이지 텍스트를 준비하는 중…");
 
@@ -285,7 +287,7 @@ function App() {
       abortRef.current = null;
       setBusy(false);
     }
-  }, [after, before, busy, currentPage, document, extractPages, messages, question, selectedText]);
+  }, [after, before, busy, currentPage, document, extractPages, messages, question, selectedTexts]);
 
   return (
     <div
@@ -346,7 +348,10 @@ function App() {
           onScale={setScale}
           onCurrentPage={handleObservedPage}
           onTextSelection={(text) => {
-            setSelectedText(text);
+            setSelectedTexts((items) => [
+              ...items,
+              { id: crypto.randomUUID(), text },
+            ]);
             setNotice("선택한 텍스트를 질문에 첨부했습니다.");
           }}
           onError={(message) => setNotice(`PDF 오류: ${message}`)}
@@ -357,11 +362,13 @@ function App() {
             <ChatSidebar
               messages={messages}
               totalPages={totalPages}
-              selectedText={selectedText}
+              selectedTexts={selectedTexts}
               busy={busy}
               question={question}
               onQuestion={setQuestion}
-              onRemoveSelection={() => setSelectedText("")}
+              onRemoveSelection={(id) => {
+                setSelectedTexts((items) => items.filter((item) => item.id !== id));
+              }}
               onSubmit={submitQuestion}
               onStop={() => abortRef.current?.abort()}
               onClear={() => setMessages([])}

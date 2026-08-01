@@ -9,7 +9,10 @@ describe("ChatSidebar", () => {
       <ChatSidebar
         messages={[]}
         totalPages={3}
-        selectedText="드래그해서 선택한 중요한 문장"
+        selectedTexts={[
+          { id: "first", text: "드래그해서 선택한 중요한 문장" },
+          { id: "second", text: "두 번째 인용문" },
+        ]}
         busy={false}
         question=""
         onQuestion={vi.fn()}
@@ -24,8 +27,9 @@ describe("ChatSidebar", () => {
     expect(screen.getByText("드래그해서 선택한 중요한 문장")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "질문 전송" })).toBeInTheDocument();
     expect(screen.queryByText("전송")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "선택 텍스트 제거" }));
-    expect(removeSelection).toHaveBeenCalledOnce();
+    expect(screen.getByText("두 번째 인용문")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "인용 1 제거" }));
+    expect(removeSelection).toHaveBeenCalledWith("first");
   });
 
   it("renders inline and block LaTeX as formatted math", () => {
@@ -37,7 +41,7 @@ describe("ChatSidebar", () => {
           content: "인라인 $s_k$와 블록 수식:\n\n$$\\frac{du}{dt}=f(u)$$",
         }]}
         totalPages={3}
-        selectedText=""
+        selectedTexts={[]}
         busy={false}
         question=""
         onQuestion={vi.fn()}

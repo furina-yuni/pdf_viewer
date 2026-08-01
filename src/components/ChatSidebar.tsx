@@ -9,11 +9,11 @@ import type { ChatMessage } from "../types";
 type Props = {
   messages: ChatMessage[];
   totalPages: number;
-  selectedText: string;
+  selectedTexts: { id: string; text: string }[];
   busy: boolean;
   question: string;
   onQuestion: (value: string) => void;
-  onRemoveSelection: () => void;
+  onRemoveSelection: (id: string) => void;
   onSubmit: () => void;
   onStop: () => void;
   onClear: () => void;
@@ -100,13 +100,24 @@ export function ChatSidebar(props: Props) {
 
       <form className="composer" onSubmit={submit}>
         <div className="composer-card">
-          {props.selectedText && (
-            <div className="selection-attachment">
-              <Quote size={15} />
-              <p>{props.selectedText}</p>
-              <button type="button" aria-label="선택 텍스트 제거" onClick={props.onRemoveSelection}>
-                <X size={14} />
-              </button>
+          {props.selectedTexts.length > 0 && (
+            <div className="selection-attachments" aria-label="첨부한 인용문">
+              {props.selectedTexts.map((selection, index) => (
+                <div className="selection-attachment" key={selection.id}>
+                  <div className="selection-attachment-icon">
+                    <Quote size={14} />
+                    <span>{index + 1}</span>
+                  </div>
+                  <p>{selection.text}</p>
+                  <button
+                    type="button"
+                    aria-label={`인용 ${index + 1} 제거`}
+                    onClick={() => props.onRemoveSelection(selection.id)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
           <div className="composer-input-row">
