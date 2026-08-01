@@ -1,0 +1,55 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { ChatSidebar } from "./ChatSidebar";
+
+describe("ChatSidebar", () => {
+  it("shows selected PDF text as a removable attachment", () => {
+    const removeSelection = vi.fn();
+    render(
+      <ChatSidebar
+        messages={[]}
+        totalPages={3}
+        selectedText="드래그해서 선택한 중요한 문장"
+        busy={false}
+        question=""
+        onQuestion={vi.fn()}
+        onRemoveSelection={removeSelection}
+        onSubmit={vi.fn()}
+        onStop={vi.fn()}
+        onClear={vi.fn()}
+        onPageClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("드래그해서 선택한 중요한 문장")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "질문 전송" })).toBeInTheDocument();
+    expect(screen.queryByText("전송")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "선택 텍스트 제거" }));
+    expect(removeSelection).toHaveBeenCalledOnce();
+  });
+
+  it("renders inline and block LaTeX as formatted math", () => {
+    const { container } = render(
+      <ChatSidebar
+        messages={[{
+          id: "math",
+          role: "assistant",
+          content: "인라인 $s_k$와 블록 수식:\n\n$$\\frac{du}{dt}=f(u)$$",
+        }]}
+        totalPages={3}
+        selectedText=""
+        busy={false}
+        question=""
+        onQuestion={vi.fn()}
+        onRemoveSelection={vi.fn()}
+        onSubmit={vi.fn()}
+        onStop={vi.fn()}
+        onClear={vi.fn()}
+        onPageClick={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelectorAll(".katex-html").length).toBeGreaterThanOrEqual(2);
+  });
+});
