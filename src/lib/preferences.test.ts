@@ -79,6 +79,9 @@ describe("viewer preferences", () => {
       listRecentPdfs: async () => [],
       openPdfDialog: async () => null,
       openRecentPdf: async () => null,
+      releasePdf: async () => undefined,
+      acquireBackend: async () => ({ baseUrl: "http://127.0.0.1:8000", leaseId: "test" }),
+      releaseBackend: async () => undefined,
     };
 
     try {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, FileText, FolderOpen, LoaderCircle, Quote, X } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { getHeightFitScale } from "../lib/pdfScale";
+import { getRenderWindow } from "../lib/pageWindow";
 import type { RecentPdf } from "../electron";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -11,7 +12,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type Props = {
-  file: File | null;
+  file: File | string | null;
   document: PDFDocumentProxy | null;
   totalPages: number;
   navigationRequest: { page: number; sequence: number } | null;
@@ -38,10 +39,26 @@ export function PdfViewer(props: Props) {
   const navigationTargetRef = useRef<number | null>(null);
   const navigationTimerRef = useRef<number | null>(null);
   const currentPageRef = useRef(1);
+  const [renderCenter, setRenderCenter] = useState(1);
+  const [defaultPageSize, setDefaultPageSize] = useState({ width: 595, height: 842 });
+  const [pageSizes, setPageSizes] = useState<Map<number, { width: number; height: number }>>(
+    () => new Map(),
+  );
   const pages = useMemo(
     () => Array.from({ length: props.totalPages }, (_, index) => index + 1),
     [props.totalPages],
   );
+  const renderedPages = useMemo(
+    () => new Set(getRenderWindow(renderCenter, props.totalPages)),
+    [renderCenter, props.totalPages],
+  );
+
+  useEffect(() => {
+    currentPageRef.current = 1;
+    setRenderCenter(1);
+    setDefaultPageSize({ width: 595, height: 842 });
+    setPageSizes(new Map());
+  }, [props.file]);
 
   useEffect(() => {
     const root = containerRef.current;
@@ -52,10 +69,14 @@ export function PdfViewer(props: Props) {
       (entries) => {
         for (const entry of entries) {
           const page = Number((entry.target as HTMLElement).dataset.page);
-          visibility.set(page, entry.isIntersecting ? entry.intersectionRatio : 0);
+          if (entry.isIntersecting) visibility.set(page, entry.intersectionRatio);
+          else visibility.delete(page);
         }
-        const mostVisible = [...visibility.entries()].sort((a, b) => b[1] - a[1])[0];
-        if (!mostVisible || mostVisible[1] <= 0) return;
+        let mostVisible: [number, number] | null = null;
+        for (const candidate of visibility) {
+          if (!mostVisible || candidate[1] > mostVisible[1]) mostVisible = candidate;
+        }
+        if (!mostVisible) return;
 
         const navigationTarget = navigationTargetRef.current;
         if (navigationTarget !== null && mostVisible[0] !== navigationTarget) return;
@@ -67,6 +88,7 @@ export function PdfViewer(props: Props) {
           }
         }
         currentPageRef.current = mostVisible[0];
+        setRenderCenter(mostVisible[0]);
         props.onCurrentPage(mostVisible[0]);
       },
       { root, threshold: [0, 0.15, 0.3, 0.5, 0.7, 0.9] },
@@ -83,9 +105,13 @@ export function PdfViewer(props: Props) {
     if (!root) return;
     navigationTargetRef.current = request.page;
     currentPageRef.current = request.page;
+    setRenderCenter(request.page);
 
-    const target = root.querySelector(`[data-page="${request.page}"]`);
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    void nextPaint().then(() => {
+      root
+        .querySelector(`[data-page="${request.page}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
 
     if (navigationTimerRef.current !== null) {
       window.clearTimeout(navigationTimerRef.current);
@@ -279,18 +305,51 @@ export function PdfViewer(props: Props) {
         loading={<div className="loading"><LoaderCircle className="spin" /> PDF 불러오는 중…</div>}
       >
         {props.document &&
-          pages.map((page) => (
-            <section key={page} className="pdf-page-shell" data-page={page}>
-              <div className="page-number">{page}</div>
-              <Page
-                pageNumber={page}
-                scale={props.scale}
-                renderAnnotationLayer
-                renderTextLayer
-                loading={<div className="page-placeholder">페이지 {page} 렌더링 중…</div>}
-              />
-            </section>
-          ))}
+          pages.map((page) => {
+            const pageSize = pageSizes.get(page) ?? defaultPageSize;
+            const width = pageSize.width * props.scale;
+            const height = pageSize.height * props.scale;
+            return (
+              <section
+                key={page}
+                className="pdf-page-shell"
+                data-page={page}
+                style={{ width, height }}
+              >
+                <div className="page-number">{page}</div>
+                {renderedPages.has(page) ? (
+                  <Page
+                    pageNumber={page}
+                    scale={props.scale}
+                    devicePixelRatio={Math.min(window.devicePixelRatio || 1, 1.5)}
+                    renderAnnotationLayer
+                    renderTextLayer
+                    onLoadSuccess={(loadedPage: PDFPageProxy) => {
+                      const viewport = loadedPage.getViewport({ scale: 1 });
+                      const nextSize = { width: viewport.width, height: viewport.height };
+                      if (page === 1) setDefaultPageSize(nextSize);
+                      setPageSizes((sizes) => {
+                        const previous = sizes.get(page);
+                        if (
+                          previous &&
+                          previous.width === nextSize.width &&
+                          previous.height === nextSize.height
+                        ) {
+                          return sizes;
+                        }
+                        const next = new Map(sizes);
+                        next.set(page, nextSize);
+                        return next;
+                      });
+                    }}
+                    loading={<div className="page-placeholder">페이지 {page} 렌더링 중…</div>}
+                  />
+                ) : (
+                  <div className="page-placeholder" aria-label={`${page}페이지 대기`} />
+                )}
+              </section>
+            );
+          })}
       </Document>
     </main>
   );

@@ -1,7 +1,7 @@
 {
   "name": "study-pdf-ai",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.4",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:backend\" \"npm:dev:frontend\"",
@@ -53,8 +53,8 @@
         "to": "web"
       },
       {
-        "from": "backend/dist/study-pdf-backend.exe",
-        "to": "backend/study-pdf-backend.exe"
+        "from": "backend/dist/study-pdf-backend",
+        "to": "backend/study-pdf-backend"
       }
     ],
     "directories": {

@@ -9,7 +9,13 @@ export type RecentPdf = {
 export type OpenedPdf = {
   name: string;
   path: string;
-  data: ArrayBuffer;
+  documentId: string;
+  sourceUrl: string;
+};
+
+export type BackendLeaseInfo = {
+  baseUrl: string;
+  leaseId: string;
 };
 
 declare global {
@@ -22,6 +28,9 @@ declare global {
       listRecentPdfs: () => Promise<RecentPdf[]>;
       openPdfDialog: () => Promise<OpenedPdf | null>;
       openRecentPdf: (filePath: string) => Promise<OpenedPdf | null>;
+      releasePdf: (documentId: string) => Promise<void>;
+      acquireBackend: () => Promise<BackendLeaseInfo>;
+      releaseBackend: (leaseId: string) => Promise<void>;
     };
   }
 }

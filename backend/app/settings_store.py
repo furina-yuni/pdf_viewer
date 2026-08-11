@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from .config import Settings, get_settings
+from .config import Settings, get_settings, resolved_embedding_model
 from .models import LlmSettingsResponse, LlmSettingsUpdate
 
 ENV_PATH = Path(
@@ -18,6 +18,8 @@ def public_settings(settings: Settings) -> LlmSettingsResponse:
         model=settings.llm_model,
         base_url=settings.llm_base_url,
         has_api_key=bool(settings.llm_api_key),
+        rag_enabled=settings.rag_enabled,
+        embedding_model=resolved_embedding_model(settings),
     )
 
 
@@ -29,6 +31,8 @@ def save_settings(update: LlmSettingsUpdate) -> LlmSettingsResponse:
         "LLM_API_KEY": api_key,
         "LLM_MODEL": update.model.strip(),
         "LLM_BASE_URL": update.base_url,
+        "LLM_EMBEDDING_MODEL": update.embedding_model.strip(),
+        "RAG_ENABLED": str(update.rag_enabled).lower(),
         "MAX_CONTEXT_CHARS": str(current.max_context_chars),
     }
     content = "\n".join(f"{key}={value}" for key, value in values.items()) + "\n"

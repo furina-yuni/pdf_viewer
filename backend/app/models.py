@@ -25,7 +25,9 @@ class ChatRequest(BaseModel):
     page_range: PageRange
     pages: list[PageContext] = Field(min_length=1, max_length=21)
     selected_text: str | None = Field(default=None, max_length=20_000)
-    history: list[ChatMessage] = Field(default_factory=list, max_length=12)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=100)
+    document_key: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._-]{8,200}$")
+    use_rag: bool = True
 
     @model_validator(mode="after")
     def validate_page_window(self) -> "ChatRequest":
@@ -54,6 +56,8 @@ class LlmSettingsResponse(BaseModel):
     model: str
     base_url: str
     has_api_key: bool
+    rag_enabled: bool
+    embedding_model: str
 
 
 class LlmSettingsUpdate(BaseModel):
@@ -62,6 +66,8 @@ class LlmSettingsUpdate(BaseModel):
     base_url: str = Field(min_length=8, max_length=500)
     api_key: str | None = Field(default=None, max_length=1_000)
     clear_api_key: bool = False
+    rag_enabled: bool = True
+    embedding_model: str = Field(default="", max_length=200)
 
     @field_validator("base_url")
     @classmethod
@@ -95,3 +101,39 @@ class ModelListRequest(BaseModel):
 
 class ModelListResponse(BaseModel):
     models: list[str]
+
+
+DocumentKey = str
+RagState = Literal["missing", "indexing", "ready", "stale", "needs_api_key", "error"]
+
+
+class RagDocumentStatusRequest(BaseModel):
+    document_key: DocumentKey = Field(pattern=r"^[A-Za-z0-9._-]{8,200}$")
+    document_name: str = Field(min_length=1, max_length=500)
+    total_pages: int = Field(ge=1, le=100_000)
+
+
+class RagDocumentStatusResponse(BaseModel):
+    state: RagState
+    indexed_pages: int = Field(ge=0)
+    processed_pages: list[int] = Field(default_factory=list)
+    total_pages: int = Field(ge=1)
+    provider: str
+    embedding_model: str
+    rag_enabled: bool
+    error: str | None = None
+
+
+class RagPageBatch(BaseModel):
+    document_name: str = Field(min_length=1, max_length=500)
+    total_pages: int = Field(ge=1, le=100_000)
+    pages: list[PageContext] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_pages(self) -> "RagPageBatch":
+        numbers = [page.page_number for page in self.pages]
+        if len(numbers) != len(set(numbers)):
+            raise ValueError("duplicate page numbers are not allowed")
+        if any(page > self.total_pages for page in numbers):
+            raise ValueError("a page exceeds total_pages")
+        return self

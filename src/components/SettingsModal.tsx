@@ -1,18 +1,28 @@
 import { FormEvent, useEffect, useState } from "react";
-import { KeyRound, ListRestart, LoaderCircle, MessagesSquare, X } from "lucide-react";
+import { Database, KeyRound, ListRestart, LoaderCircle, MessagesSquare, X } from "lucide-react";
+import { backendFetch } from "../lib/backend";
+import type { RagStatus } from "../types";
 
 type SettingsData = {
   provider: "mock" | "openai" | "gemini";
   model: string;
   base_url: string;
   has_api_key: boolean;
+  rag_enabled: boolean;
+  embedding_model: string;
 };
 
 type Props = {
   open: boolean;
   historyQuestionLimit: number;
+  ragStatus: RagStatus | null;
+  ragIndexing: boolean;
+  totalPages: number;
   onClose: () => void;
   onSaved: (message: string) => void;
+  onRagSettingsChanged: () => void;
+  onStartRag: () => void;
+  onReindexRag: () => void;
   onHistoryQuestionLimit: (value: number) => void;
 };
 
@@ -21,13 +31,21 @@ const defaults: SettingsData = {
   model: "gpt-4.1-mini",
   base_url: "https://api.openai.com/v1",
   has_api_key: false,
+  rag_enabled: true,
+  embedding_model: "text-embedding-3-small",
 };
 
 export function SettingsModal({
   open,
   historyQuestionLimit,
+  ragStatus,
+  ragIndexing,
+  totalPages,
   onClose,
   onSaved,
+  onRagSettingsChanged,
+  onStartRag,
+  onReindexRag,
   onHistoryQuestionLimit,
 }: Props) {
   const [settings, setSettings] = useState(defaults);
@@ -44,7 +62,7 @@ export function SettingsModal({
     setHistoryLimitDraft(historyQuestionLimit);
     setLoading(true);
     setError("");
-    fetch("/api/settings")
+    backendFetch("/api/settings")
       .then(async (response) => {
         if (!response.ok) throw new Error("설정을 불러오지 못했습니다.");
         return response.json() as Promise<SettingsData>;
@@ -69,6 +87,7 @@ export function SettingsModal({
         provider,
         model: "gemini-3.6-flash",
         base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
+        embedding_model: "gemini-embedding-2",
       });
     } else if (provider === "openai") {
       setSettings({
@@ -76,6 +95,7 @@ export function SettingsModal({
         provider,
         model: "gpt-4.1-mini",
         base_url: "https://api.openai.com/v1",
+        embedding_model: "text-embedding-3-small",
       });
     } else {
       setSettings({ ...settings, provider });
@@ -87,7 +107,7 @@ export function SettingsModal({
     setLoadingModels(true);
     setError("");
     try {
-      const response = await fetch("/api/models", {
+      const response = await backendFetch("/api/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -111,12 +131,11 @@ export function SettingsModal({
     }
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function saveSettings(closeAfterSave: boolean, startIndex: boolean) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/settings", {
+      const response = await backendFetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -125,6 +144,8 @@ export function SettingsModal({
           base_url: settings.base_url,
           api_key: apiKey || null,
           clear_api_key: clearKey,
+          rag_enabled: settings.rag_enabled,
+          embedding_model: settings.embedding_model,
         }),
       });
       if (!response.ok) throw new Error("설정을 저장하지 못했습니다.");
@@ -133,14 +154,43 @@ export function SettingsModal({
       setApiKey("");
       setClearKey(false);
       onHistoryQuestionLimit(historyLimitDraft);
-      onSaved(saved.provider === "mock" ? "모의 AI 모드로 저장했습니다." : "AI API 설정을 저장했습니다.");
-      onClose();
+      onSaved(
+        startIndex
+          ? "AI API 설정을 저장하고 문서 색인을 시작했습니다."
+          : saved.provider === "mock"
+            ? "모의 AI 모드로 저장했습니다."
+            : "AI API 설정을 저장했습니다.",
+      );
+      if (startIndex) {
+        if (ragStatus?.state === "ready") onReindexRag();
+        else onStartRag();
+      } else {
+        onRagSettingsChanged();
+      }
+      if (closeAfterSave) onClose();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "설정 저장 오류");
     } finally {
       setLoading(false);
     }
   }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    await saveSettings(true, false);
+  }
+
+  const indexedPages = ragStatus?.indexed_pages ?? 0;
+  const progressTotal = ragStatus?.total_pages || totalPages;
+  const progressPercent = progressTotal > 0
+    ? Math.min(100, Math.round((indexedPages / progressTotal) * 100))
+    : 0;
+  const canStartIndex = Boolean(
+    totalPages
+      && settings.rag_enabled
+      && settings.provider !== "mock"
+      && (settings.has_api_key || apiKey.trim()),
+  );
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -220,6 +270,58 @@ export function SettingsModal({
               저장된 API 키 삭제
             </label>
           )}
+          <div className="rag-settings-block">
+            <label className="rag-toggle">
+              <span><Database size={15} />문서 전체 검색</span>
+              <input
+                type="checkbox"
+                checked={settings.rag_enabled}
+                onChange={(event) => setSettings({ ...settings, rag_enabled: event.target.checked })}
+              />
+            </label>
+            <label className="field">
+              <span>임베딩 모델</span>
+              <input
+                value={settings.embedding_model}
+                disabled={!settings.rag_enabled}
+                onChange={(event) => setSettings({ ...settings, embedding_model: event.target.value })}
+              />
+              <small>색인 시 PDF 텍스트가 선택한 API 제공자에게 전송됩니다.</small>
+            </label>
+            <div className="rag-index-control">
+              <div className="rag-index-summary">
+                <span>현재 문서 색인</span>
+                <strong>{progressTotal ? `${indexedPages}/${progressTotal}페이지 · ${progressPercent}%` : "PDF 없음"}</strong>
+              </div>
+              <div
+                className="rag-progress-track"
+                role="progressbar"
+                aria-label="문서 색인 진행률"
+                aria-valuemin={0}
+                aria-valuemax={progressTotal || 1}
+                aria-valuenow={indexedPages}
+              >
+                <span style={{ width: `${progressPercent}%` }} />
+              </div>
+              {ragStatus?.error && <small className="rag-index-error">{ragStatus.error}</small>}
+              <button
+                type="button"
+                className="rag-index-button"
+                disabled={!canStartIndex || loading || ragIndexing}
+                onClick={() => void saveSettings(false, true)}
+              >
+                {ragIndexing && <LoaderCircle size={14} className="spin" />}
+                {ragIndexing
+                  ? "색인 진행 중"
+                  : ragStatus?.state === "ready"
+                    ? "다시 색인"
+                    : indexedPages > 0
+                      ? "이어서 색인"
+                      : "색인 시작"}
+              </button>
+              {!totalPages && <small>먼저 PDF를 열어 주세요.</small>}
+            </div>
+          </div>
           <label className="field history-limit-field">
             <span><MessagesSquare size={14} />대화 문맥</span>
             <input

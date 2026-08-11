@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Bot, Check, Copy, Eraser, Quote, Send, Square, UserRound, X } from "lucide-react";
+import { Bot, Check, Copy, Database, Eraser, Quote, RefreshCw, Send, Square, Trash2, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
-import type { ChatMessage } from "../types";
+import type { ChatMessage, RagStatus } from "../types";
 
 type Props = {
   messages: ChatMessage[];
@@ -12,13 +12,41 @@ type Props = {
   selectedTexts: { id: string; text: string }[];
   busy: boolean;
   question: string;
+  ragStatus: RagStatus | null;
+  ragIndexing: boolean;
   onQuestion: (value: string) => void;
   onRemoveSelection: (id: string) => void;
   onSubmit: () => void;
   onStop: () => void;
   onClear: () => void;
   onPageClick: (page: number) => void;
+  onRetryRag: () => void;
+  onReindexRag: () => void;
+  onDeleteRag: () => void;
 };
+
+function ragStatusText(status: RagStatus | null, totalPages: number, indexing: boolean): string {
+  if (!totalPages) return "PDF를 열면 문서 전체 검색을 준비합니다";
+  if (!status) return "문서 검색 확인 중";
+  if (!status.rag_enabled) return "문서 전체 검색 꺼짐";
+  if (status.state === "ready") {
+    return status.loadedFromCache ? "저장된 색인 불러옴" : "문서 검색 준비됨";
+  }
+  if (status.state === "indexing") {
+    return indexing
+      ? `색인 중 ${status.indexed_pages}/${status.total_pages}`
+      : `색인 대기 ${status.indexed_pages}/${status.total_pages} · API 설정에서 시작`;
+  }
+  if (status.state === "needs_api_key") return "API 설정 필요";
+  if (status.state === "stale") return "설정 변경 감지 · 다시 색인 중";
+  if (status.state === "error") {
+    const progress = status.indexed_pages > 0
+      ? ` · ${status.indexed_pages}/${status.total_pages} 저장됨`
+      : "";
+    return `색인 오류${progress} · 재시도`;
+  }
+  return "문서 검색 준비 중";
+}
 
 export function ChatSidebar(props: Props) {
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -73,6 +101,27 @@ export function ChatSidebar(props: Props) {
 
   return (
     <aside className="chat-sidebar">
+      <div className={`rag-status rag-${props.ragStatus?.state ?? "checking"}`}>
+        <Database size={14} />
+        <span title={props.ragStatus?.error ?? undefined}>
+          {ragStatusText(props.ragStatus, props.totalPages, props.ragIndexing)}
+        </span>
+        {props.ragStatus?.state === "error" && (
+          <button type="button" onClick={props.onRetryRag} title="색인 재시도">
+            <RefreshCw size={13} />
+          </button>
+        )}
+        {props.ragStatus?.state === "ready" && (
+          <>
+            <button type="button" onClick={props.onReindexRag} title="다시 색인">
+              <RefreshCw size={13} />
+            </button>
+            <button type="button" onClick={props.onDeleteRag} title="색인 삭제">
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
+      </div>
       <div className="chat-actions">
         <button className="icon-button" title="대화 지우기" onClick={props.onClear}>
           <Eraser size={17} />
@@ -124,6 +173,9 @@ export function ChatSidebar(props: Props) {
                       <button key={page} onClick={() => props.onPageClick(page)}>p.{page}</button>
                     ))}
                     {message.tokenEstimate != null && <span>약 {message.tokenEstimate} tokens</span>}
+                    {message.ragPages && message.ragPages.length > 0 && (
+                      <span>문서 검색 {message.ragPages.map((page) => `p.${page}`).join(", ")}</span>
+                    )}
                   </div>
                 )}
               </div>

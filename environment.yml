@@ -6,4 +6,5 @@ dependencies:
   - pip
   - pip:
       - -e ./backend[dev]
+      - lancedb==0.37.1
       - pyinstaller>=6.11,<7

@@ -33,6 +33,8 @@ def test_settings_never_returns_api_key() -> None:
     assert response.status_code == 200
     assert "api_key" not in response.json()
     assert "has_api_key" in response.json()
+    assert "rag_enabled" in response.json()
+    assert "embedding_model" in response.json()
 
 
 def test_gemini_settings_are_valid() -> None:

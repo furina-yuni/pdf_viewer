@@ -13,12 +13,15 @@ import { loadPreferences, savePreferences } from "./lib/preferences";
 import { createTheme } from "./lib/theme";
 import { streamSse } from "./lib/sse";
 import { stepZoomScale } from "./lib/zoom";
-import type { ChatMessage, PageText } from "./types";
+import { acquireBackend, type BackendLease } from "./lib/backend";
+import { createDocumentKey, pageBatches } from "./lib/rag";
+import type { ChatMessage, PageText, RagStatus } from "./types";
 import type { OpenedPdf, RecentPdf } from "./electron";
 
 function App() {
   const savedPreferences = useMemo(() => loadPreferences(), []);
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | string | null>(null);
+  const [fileName, setFileName] = useState("");
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [navigationRequest, setNavigationRequest] = useState<{
@@ -44,10 +47,17 @@ function App() {
   const [question, setQuestion] = useState("");
   const [selectedTexts, setSelectedTexts] = useState<{ id: string; text: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [documentKey, setDocumentKey] = useState<string | null>(null);
+  const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
+  const [ragGeneration, setRagGeneration] = useState(0);
+  const [ragStartRequested, setRagStartRequested] = useState(false);
+  const [ragIndexing, setRagIndexing] = useState(false);
   const [, setNotice] = useState("");
   const textCache = useRef(new Map<number, string>());
   const abortRef = useRef<AbortController | null>(null);
+  const ragAbortRef = useRef<AbortController | null>(null);
   const currentPageRef = useRef(1);
+  const documentIdRef = useRef<string | null>(null);
 
   const totalPages = document?.numPages ?? 0;
   const contextPages = useMemo(
@@ -137,11 +147,20 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [appearanceOpen, document, navigateToPage, settingsOpen]);
 
-  const handleFile = useCallback((nextFile: File) => {
+  const resetPdf = useCallback((source: File | string, name: string, documentId: string | null) => {
     abortRef.current?.abort();
+    ragAbortRef.current?.abort();
     textCache.current.clear();
-    setFile(nextFile);
+    const previousDocumentId = documentIdRef.current;
+    if (previousDocumentId && previousDocumentId !== documentId) {
+      void window.desktop?.releasePdf(previousDocumentId);
+    }
+    documentIdRef.current = documentId;
+    setFile(source);
+    setFileName(name);
     setDocument(null);
+    setDocumentKey(null);
+    setRagStatus(null);
     setCurrentPage(1);
     currentPageRef.current = 1;
     setNavigationRequest(null);
@@ -150,13 +169,27 @@ function App() {
     setNotice("");
   }, []);
 
+  const handleFile = useCallback((nextFile: File) => {
+    resetPdf(nextFile, nextFile.name, null);
+  }, [resetPdf]);
+
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      ragAbortRef.current?.abort();
+      const documentId = documentIdRef.current;
+      if (documentId) void window.desktop?.releasePdf(documentId);
+    },
+    [],
+  );
+
   const handleOpenedPdf = useCallback(
     (opened: OpenedPdf) => {
-      handleFile(new File([opened.data], opened.name, { type: "application/pdf" }));
+      resetPdf(opened.sourceUrl, opened.name, opened.documentId);
       setRecentError("");
       void refreshRecentPdfs();
     },
-    [handleFile, refreshRecentPdfs],
+    [refreshRecentPdfs, resetPdf],
   );
 
   const openPdfDialog = useCallback(async () => {
@@ -198,6 +231,14 @@ function App() {
               .replace(/\s+/g, " ")
               .trim();
             textCache.current.set(pageNumber, text);
+            while (textCache.current.size > 64) {
+              const oldestPage = textCache.current.keys().next().value;
+              if (oldestPage === undefined) break;
+              textCache.current.delete(oldestPage);
+            }
+          } else {
+            textCache.current.delete(pageNumber);
+            textCache.current.set(pageNumber, text);
           }
           return { pageNumber, text: text || "(이 페이지에서 텍스트를 추출하지 못했습니다.)" };
         }),
@@ -205,6 +246,142 @@ function App() {
     },
     [document],
   );
+
+  useEffect(() => {
+    if (!document) return;
+    const controller = new AbortController();
+    ragAbortRef.current?.abort();
+    ragAbortRef.current = controller;
+    let backendLease: BackendLease | null = null;
+    let cancelled = false;
+
+    const postJson = async (baseUrl: string, path: string, body: object) => {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({})) as RagStatus & { detail?: string };
+      if (!response.ok) throw new Error(payload.detail || "문서 검색 색인 요청에 실패했습니다.");
+      return payload;
+    };
+
+    const run = async () => {
+      const key = await createDocumentKey(document);
+      if (cancelled) return;
+      setDocumentKey(key);
+      backendLease = await acquireBackend();
+      const request = {
+        document_key: key,
+        document_name: fileName || "document.pdf",
+        total_pages: document.numPages,
+      };
+      let status = await postJson(backendLease.baseUrl, "/api/rag/documents/status", request);
+      if (cancelled) return;
+      if (status.state === "ready") status = { ...status, loadedFromCache: true };
+      setRagStatus(status);
+      if (
+        !ragStartRequested
+        || !status.rag_enabled
+        || status.state === "ready"
+        || status.state === "needs_api_key"
+      ) return;
+
+      setRagIndexing(true);
+      status = { ...status, state: "indexing", error: null, loadedFromCache: false };
+      setRagStatus(status);
+
+      for (const batch of pageBatches(document.numPages, status.processed_pages)) {
+        const pages: PageText[] = [];
+        for (let start = 0; start < batch.length; start += 2) {
+          if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+          pages.push(...await extractPages(batch.slice(start, start + 2)));
+        }
+        status = await postJson(
+          backendLease.baseUrl,
+          `/api/rag/documents/${encodeURIComponent(key)}/pages`,
+          {
+            document_name: request.document_name,
+            total_pages: document.numPages,
+            pages: pages.map((page) => ({ page_number: page.pageNumber, text: page.text })),
+          },
+        );
+        if (!cancelled) setRagStatus(status);
+      }
+      status = await postJson(
+        backendLease.baseUrl,
+        `/api/rag/documents/${encodeURIComponent(key)}/finalize`,
+        request,
+      );
+      if (!cancelled) setRagStatus(status);
+    };
+
+    void run().catch((reason: unknown) => {
+      if (cancelled || (reason instanceof DOMException && reason.name === "AbortError")) return;
+      setRagStatus((current) => ({
+        state: "error",
+        indexed_pages: current?.indexed_pages ?? 0,
+        processed_pages: current?.processed_pages ?? [],
+        total_pages: document.numPages,
+        provider: current?.provider ?? "",
+        embedding_model: current?.embedding_model ?? "",
+        rag_enabled: current?.rag_enabled ?? true,
+        error: reason instanceof Error ? reason.message : "문서 검색 색인 오류",
+      }));
+    }).finally(async () => {
+      await backendLease?.release();
+      setRagStartRequested(false);
+      setRagIndexing(false);
+      if (ragAbortRef.current === controller) ragAbortRef.current = null;
+    });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [document, extractPages, fileName, ragGeneration]);
+
+  const startRagIndex = useCallback(() => {
+    if (!document) return;
+    setRagStartRequested(true);
+    setRagIndexing(true);
+    setRagGeneration((value) => value + 1);
+  }, [document]);
+
+  const deleteRagIndex = useCallback(async () => {
+    if (!documentKey || !document) return;
+    ragAbortRef.current?.abort();
+    const lease = await acquireBackend();
+    try {
+      const response = await fetch(
+        `${lease.baseUrl}/api/rag/documents/${encodeURIComponent(documentKey)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) throw new Error("색인을 삭제하지 못했습니다.");
+      setRagStatus((current) => current ? {
+        ...current,
+        state: "missing",
+        indexed_pages: 0,
+        processed_pages: [],
+        error: null,
+        loadedFromCache: false,
+      } : null);
+    } finally {
+      await lease.release();
+    }
+  }, [document, documentKey]);
+
+  const rebuildRagIndex = useCallback(async () => {
+    try {
+      await deleteRagIndex();
+      setRagStartRequested(true);
+      setRagIndexing(true);
+      setRagGeneration((value) => value + 1);
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "색인을 다시 만들지 못했습니다.");
+    }
+  }, [deleteRagIndex]);
 
   const submitQuestion = useCallback(async () => {
     const trimmed = question.trim();
@@ -235,13 +412,15 @@ function App() {
 
     const controller = new AbortController();
     abortRef.current = controller;
+    let backendLease: BackendLease | null = null;
 
     try {
       const pages = await extractPages(rangeSnapshot);
       setNotice(`${rangeSnapshot[0]}~${rangeSnapshot.at(-1)}페이지를 참고해 답변 중…`);
+      backendLease = await acquireBackend();
 
       await streamSse(
-        "/api/chat/stream",
+        `${backendLease.baseUrl}/api/chat/stream`,
         {
           question: trimmed,
           current_page: pageSnapshot,
@@ -253,6 +432,8 @@ function App() {
           })),
           selected_text: attachedSelection,
           history: historySnapshot.map(({ role, content }) => ({ role, content })),
+          document_key: documentKey,
+          use_rag: ragStatus?.rag_enabled ?? true,
         },
         controller.signal,
         (event, data) => {
@@ -263,6 +444,9 @@ function App() {
                   ? {
                       ...item,
                       pages: data.pages as number[],
+                      nearbyPages: data.nearby_pages as number[],
+                      ragPages: data.rag_pages as number[],
+                      ragState: data.rag_state as ChatMessage["ragState"],
                       tokenEstimate: data.estimated_context_tokens as number,
                     }
                   : item,
@@ -297,10 +481,11 @@ function App() {
         setNotice("AI 요청에 실패했습니다.");
       }
     } finally {
+      await backendLease?.release();
       abortRef.current = null;
       setBusy(false);
     }
-  }, [after, before, busy, currentPage, document, extractPages, historyQuestionLimit, messages, question, selectedTexts]);
+  }, [after, before, busy, currentPage, document, documentKey, extractPages, historyQuestionLimit, messages, question, ragStatus?.rag_enabled, selectedTexts]);
 
   return (
     <div
@@ -308,7 +493,7 @@ function App() {
       style={themeVariables}
     >
       {toolbarVisible ? <Toolbar
-        fileName={file?.name ?? ""}
+        fileName={fileName}
         currentPage={currentPage}
         totalPages={totalPages}
         scale={scale}
@@ -378,6 +563,8 @@ function App() {
               selectedTexts={selectedTexts}
               busy={busy}
               question={question}
+              ragStatus={ragStatus}
+              ragIndexing={ragIndexing}
               onQuestion={setQuestion}
               onRemoveSelection={(id) => {
                 setSelectedTexts((items) => items.filter((item) => item.id !== id));
@@ -386,6 +573,11 @@ function App() {
               onStop={() => abortRef.current?.abort()}
               onClear={() => setMessages([])}
               onPageClick={navigateToPage}
+              onRetryRag={startRagIndex}
+              onReindexRag={() => void rebuildRagIndex()}
+              onDeleteRag={() => void deleteRagIndex().catch((reason: unknown) => {
+                setNotice(reason instanceof Error ? reason.message : "색인을 삭제하지 못했습니다.");
+              })}
             />
           </>
         )}
@@ -393,8 +585,14 @@ function App() {
       <SettingsModal
         open={settingsOpen}
         historyQuestionLimit={historyQuestionLimit}
+        ragStatus={ragStatus}
+        ragIndexing={ragIndexing}
+        totalPages={totalPages}
         onClose={() => setSettingsOpen(false)}
         onSaved={setNotice}
+        onRagSettingsChanged={() => setRagGeneration((value) => value + 1)}
+        onStartRag={startRagIndex}
+        onReindexRag={() => void rebuildRagIndex()}
         onHistoryQuestionLimit={setHistoryQuestionLimit}
       />
       <AppearanceModal

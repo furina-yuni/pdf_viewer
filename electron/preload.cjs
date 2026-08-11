@@ -8,4 +8,7 @@ contextBridge.exposeInMainWorld("desktop", {
   listRecentPdfs: () => ipcRenderer.invoke("pdf:list-recent"),
   openPdfDialog: () => ipcRenderer.invoke("pdf:open-dialog"),
   openRecentPdf: (filePath) => ipcRenderer.invoke("pdf:open-recent", filePath),
+  releasePdf: (documentId) => ipcRenderer.invoke("pdf:release", documentId),
+  acquireBackend: () => ipcRenderer.invoke("backend:acquire"),
+  releaseBackend: (leaseId) => ipcRenderer.invoke("backend:release", leaseId),
 });
