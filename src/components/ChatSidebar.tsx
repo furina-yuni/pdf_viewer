@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useLayoutEffect, useRef } from "react";
-import { Bot, Eraser, Quote, Send, Square, UserRound, X } from "lucide-react";
+import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Bot, Check, Copy, Eraser, Quote, Send, Square, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -25,6 +25,7 @@ export function ChatSidebar(props: Props) {
   const userScrolledAway = useRef(false);
   const previousMessageCount = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   useLayoutEffect(() => {
     const hasNewMessage = props.messages.length > previousMessageCount.current;
     previousMessageCount.current = props.messages.length;
@@ -48,6 +49,26 @@ export function ChatSidebar(props: Props) {
   function submit(event: FormEvent) {
     event.preventDefault();
     props.onSubmit();
+  }
+
+  async function copyAnswer(message: ChatMessage) {
+    if (!message.content) return;
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = message.content;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    setCopiedMessageId(message.id);
+    window.setTimeout(() => {
+      setCopiedMessageId((current) => current === message.id ? null : current);
+    }, 1_500);
   }
 
   return (
@@ -83,6 +104,19 @@ export function ChatSidebar(props: Props) {
                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                   {message.content || "…"}
                 </ReactMarkdown>
+                {message.role === "assistant" && message.content && (
+                  <div className="message-tools">
+                    <button
+                      type="button"
+                      onClick={() => void copyAnswer(message)}
+                      aria-label="답변 전체 복사"
+                      title="답변 전체 복사"
+                    >
+                      {copiedMessageId === message.id ? <Check size={13} /> : <Copy size={13} />}
+                      {copiedMessageId === message.id ? "복사됨" : "복사"}
+                    </button>
+                  </div>
+                )}
                 {message.pages && message.pages.length > 0 && (
                   <div className="message-meta">
                     참고 페이지

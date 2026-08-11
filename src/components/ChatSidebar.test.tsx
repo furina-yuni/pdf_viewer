@@ -55,5 +55,6 @@ describe("ChatSidebar", () => {
 
     expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2);
     expect(container.querySelectorAll(".katex-html").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("button", { name: "답변 전체 복사" })).toBeInTheDocument();
   });
 });

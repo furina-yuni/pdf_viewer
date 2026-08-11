@@ -4,9 +4,11 @@ export type ViewerPreferences = {
   scale: number;
   zoomMode: "fit" | "manual";
   chatWidth: number;
+  chatWidthRatio: number;
   chatOpen: boolean;
   toolbarVisible: boolean;
   viewerBackground: string;
+  historyQuestionLimit: number;
 };
 
 const STORAGE_KEY = "study-pdf-ai-preferences-v1";
@@ -17,9 +19,11 @@ export const defaultPreferences: ViewerPreferences = {
   scale: 1.05,
   zoomMode: "fit",
   chatWidth: 440,
+  chatWidthRatio: 0.42,
   chatOpen: true,
   toolbarVisible: true,
   viewerBackground: "#343941",
+  historyQuestionLimit: 10,
 };
 
 export function loadPreferences(storage: Storage = window.localStorage): ViewerPreferences {
@@ -44,6 +48,12 @@ export function loadPreferences(storage: Storage = window.localStorage): ViewerP
             ? "manual"
             : defaultPreferences.zoomMode,
       chatWidth: clampMinimum(parsed.chatWidth, 320, defaultPreferences.chatWidth),
+      chatWidthRatio: clampNumber(
+        parsed.chatWidthRatio,
+        0.15,
+        0.98,
+        defaultPreferences.chatWidthRatio,
+      ),
       chatOpen:
         typeof parsed.chatOpen === "boolean" ? parsed.chatOpen : defaultPreferences.chatOpen,
       toolbarVisible:
@@ -55,6 +65,12 @@ export function loadPreferences(storage: Storage = window.localStorage): ViewerP
         : isHexColor(legacyBackground)
           ? legacyBackground
           : defaultPreferences.viewerBackground,
+      historyQuestionLimit: clampNumber(
+        parsed.historyQuestionLimit,
+        0,
+        50,
+        defaultPreferences.historyQuestionLimit,
+      ),
     };
   } catch {
     return defaultPreferences;

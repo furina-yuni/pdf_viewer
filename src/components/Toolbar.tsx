@@ -12,6 +12,7 @@ import {
   Settings,
 } from "lucide-react";
 import { getReferenceMarkers } from "../lib/referenceMarkers";
+import { snapZoomScale, stepZoomScale } from "../lib/zoom";
 
 type Props = {
   fileName: string;
@@ -51,7 +52,7 @@ export function Toolbar(props: Props) {
       setZoomText(String(Math.round(props.scale * 100)));
       return;
     }
-    props.onScale(Math.min(5, Math.max(0.05, percentage / 100)));
+    props.onScale(snapZoomScale(percentage / 100));
   }
 
   return (
@@ -196,7 +197,7 @@ export function Toolbar(props: Props) {
             </button>
             <button
               aria-label="축소"
-              onClick={() => props.onScale(Math.max(0.05, props.scale - 0.1))}
+              onClick={() => props.onScale(stepZoomScale(props.scale, -1))}
             >
               <Minus size={16} />
             </button>
@@ -218,7 +219,7 @@ export function Toolbar(props: Props) {
             </label>
             <button
               aria-label="확대"
-              onClick={() => props.onScale(Math.min(5, props.scale + 0.1))}
+              onClick={() => props.onScale(stepZoomScale(props.scale, 1))}
             >
               <Plus size={16} />
             </button>

@@ -8,9 +8,11 @@ import { ResizeHandle } from "./components/ResizeHandle";
 import { SettingsModal } from "./components/SettingsModal";
 import { Toolbar } from "./components/Toolbar";
 import { getPageRange } from "./lib/pageRange";
+import { getRecentQuestionHistory } from "./lib/chatHistory";
 import { loadPreferences, savePreferences } from "./lib/preferences";
 import { createTheme } from "./lib/theme";
 import { streamSse } from "./lib/sse";
+import { stepZoomScale } from "./lib/zoom";
 import type { ChatMessage, PageText } from "./types";
 import type { OpenedPdf, RecentPdf } from "./electron";
 
@@ -26,13 +28,16 @@ function App() {
   const [scale, setScale] = useState(savedPreferences.scale);
   const [zoomMode, setZoomMode] = useState(savedPreferences.zoomMode);
   const [chatOpen, setChatOpen] = useState(savedPreferences.chatOpen);
-  const [chatWidth, setChatWidth] = useState(savedPreferences.chatWidth);
+  const [chatWidthRatio, setChatWidthRatio] = useState(savedPreferences.chatWidthRatio);
   const [toolbarVisible, setToolbarVisible] = useState(savedPreferences.toolbarVisible);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [viewerBackground, setViewerBackground] = useState(savedPreferences.viewerBackground);
   const [before, setBefore] = useState(savedPreferences.before);
   const [after, setAfter] = useState(savedPreferences.after);
+  const [historyQuestionLimit, setHistoryQuestionLimit] = useState(
+    savedPreferences.historyQuestionLimit,
+  );
   const [recentPdfs, setRecentPdfs] = useState<RecentPdf[]>([]);
   const [recentError, setRecentError] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -60,12 +65,14 @@ function App() {
       after,
       scale,
       zoomMode,
-      chatWidth,
+      chatWidth: Math.round(window.innerWidth * chatWidthRatio),
+      chatWidthRatio,
       chatOpen,
       toolbarVisible,
       viewerBackground,
+      historyQuestionLimit,
     });
-  }, [after, before, chatOpen, chatWidth, scale, toolbarVisible, viewerBackground, zoomMode]);
+  }, [after, before, chatOpen, chatWidthRatio, historyQuestionLimit, scale, toolbarVisible, viewerBackground, zoomMode]);
 
   const refreshRecentPdfs = useCallback(async () => {
     if (!window.desktop?.isElectron) return;
@@ -110,6 +117,12 @@ function App() {
         appearanceOpen ||
         isEditing
       ) {
+        return;
+      }
+      if (event.ctrlKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+        event.preventDefault();
+        setScale((currentScale) => stepZoomScale(currentScale, event.key === "ArrowUp" ? 1 : -1));
+        setZoomMode("manual");
         return;
       }
       if (event.key === "ArrowDown") {
@@ -208,7 +221,7 @@ function App() {
       content: trimmed,
     };
     const assistantId = crypto.randomUUID();
-    const historySnapshot = messages.slice(-8);
+    const historySnapshot = getRecentQuestionHistory(messages, historyQuestionLimit);
 
     setMessages((items) => [
       ...items,
@@ -287,7 +300,7 @@ function App() {
       abortRef.current = null;
       setBusy(false);
     }
-  }, [after, before, busy, currentPage, document, extractPages, messages, question, selectedTexts]);
+  }, [after, before, busy, currentPage, document, extractPages, historyQuestionLimit, messages, question, selectedTexts]);
 
   return (
     <div
@@ -331,7 +344,7 @@ function App() {
       )}
       <div
         className={`workspace ${chatOpen ? "with-chat" : ""}`}
-        style={{ "--chat-width": `${chatWidth}px` } as CSSProperties}
+        style={{ "--chat-ratio": `${chatWidthRatio * 100}%` } as CSSProperties}
       >
         <PdfViewer
           file={file}
@@ -358,7 +371,7 @@ function App() {
         />
         {chatOpen && (
           <>
-            <ResizeHandle width={chatWidth} onWidth={setChatWidth} />
+            <ResizeHandle ratio={chatWidthRatio} onRatio={setChatWidthRatio} />
             <ChatSidebar
               messages={messages}
               totalPages={totalPages}
@@ -379,8 +392,10 @@ function App() {
       </div>
       <SettingsModal
         open={settingsOpen}
+        historyQuestionLimit={historyQuestionLimit}
         onClose={() => setSettingsOpen(false)}
         onSaved={setNotice}
+        onHistoryQuestionLimit={setHistoryQuestionLimit}
       />
       <AppearanceModal
         open={appearanceOpen}

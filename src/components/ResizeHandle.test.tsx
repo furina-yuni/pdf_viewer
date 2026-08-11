@@ -5,27 +5,33 @@ import { ResizeHandle } from "./ResizeHandle";
 describe("ResizeHandle", () => {
   afterEach(cleanup);
 
-  it("allows the chat sidebar to grow beyond the old 720px limit", () => {
-    const onWidth = vi.fn();
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1400 });
-    render(<ResizeHandle width={700} onWidth={onWidth} />);
+  it("stores the dragged sidebar width as a workspace ratio", () => {
+    const onRatio = vi.fn();
+    render(<div><ResizeHandle ratio={0.5} onRatio={onRatio} /></div>);
 
     const handle = screen.getByRole("separator", { name: "AI 창 너비 조절" });
+    vi.spyOn(handle.parentElement!, "getBoundingClientRect").mockReturnValue({
+      left: 0, right: 1400, width: 1400, top: 0, bottom: 900, height: 900, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
     fireEvent(handle, new MouseEvent("pointerdown", { bubbles: true, clientX: 700 }));
     fireEvent(window, new MouseEvent("pointermove", { bubbles: true, clientX: 300 }));
 
-    expect(onWidth).toHaveBeenLastCalledWith(1100);
+    expect(onRatio).toHaveBeenLastCalledWith(1100 / 1400);
   });
 
   it("stops only at the physical edge of the window", () => {
-    const onWidth = vi.fn();
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1000 });
-    render(<ResizeHandle width={700} onWidth={onWidth} />);
+    const onRatio = vi.fn();
+    render(<div><ResizeHandle ratio={0.7} onRatio={onRatio} /></div>);
 
     const handle = screen.getByRole("separator", { name: "AI 창 너비 조절" });
+    vi.spyOn(handle.parentElement!, "getBoundingClientRect").mockReturnValue({
+      left: 0, right: 1000, width: 1000, top: 0, bottom: 900, height: 900, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
     fireEvent(handle, new MouseEvent("pointerdown", { bubbles: true, clientX: 700 }));
     fireEvent(window, new MouseEvent("pointermove", { bubbles: true, clientX: 0 }));
 
-    expect(onWidth).toHaveBeenLastCalledWith(993);
+    expect(onRatio).toHaveBeenLastCalledWith(0.993);
   });
 });

@@ -16,9 +16,11 @@ describe("viewer preferences", () => {
       scale: 1.35,
       zoomMode: "manual",
       chatWidth: 560,
+      chatWidthRatio: 0.46,
       chatOpen: false,
       toolbarVisible: false,
       viewerBackground: "#202a3a",
+      historyQuestionLimit: 6,
     };
     savePreferences(preferences);
     expect(loadPreferences()).toEqual(preferences);
@@ -34,6 +36,7 @@ describe("viewer preferences", () => {
       scale: defaultPreferences.scale,
       zoomMode: "fit",
       chatWidth: 320,
+      chatWidthRatio: defaultPreferences.chatWidthRatio,
     });
   });
 

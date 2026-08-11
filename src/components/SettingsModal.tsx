@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { KeyRound, ListRestart, LoaderCircle, X } from "lucide-react";
+import { KeyRound, ListRestart, LoaderCircle, MessagesSquare, X } from "lucide-react";
 
 type SettingsData = {
   provider: "mock" | "openai" | "gemini";
@@ -10,8 +10,10 @@ type SettingsData = {
 
 type Props = {
   open: boolean;
+  historyQuestionLimit: number;
   onClose: () => void;
   onSaved: (message: string) => void;
+  onHistoryQuestionLimit: (value: number) => void;
 };
 
 const defaults: SettingsData = {
@@ -21,7 +23,13 @@ const defaults: SettingsData = {
   has_api_key: false,
 };
 
-export function SettingsModal({ open, onClose, onSaved }: Props) {
+export function SettingsModal({
+  open,
+  historyQuestionLimit,
+  onClose,
+  onSaved,
+  onHistoryQuestionLimit,
+}: Props) {
   const [settings, setSettings] = useState(defaults);
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
@@ -29,9 +37,11 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [historyLimitDraft, setHistoryLimitDraft] = useState(historyQuestionLimit);
 
   useEffect(() => {
     if (!open) return;
+    setHistoryLimitDraft(historyQuestionLimit);
     setLoading(true);
     setError("");
     fetch("/api/settings")
@@ -47,7 +57,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
       })
       .catch((reason: Error) => setError(reason.message))
       .finally(() => setLoading(false));
-  }, [open]);
+  }, [historyQuestionLimit, open]);
 
   if (!open) return null;
 
@@ -122,6 +132,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
       setSettings(saved);
       setApiKey("");
       setClearKey(false);
+      onHistoryQuestionLimit(historyLimitDraft);
       onSaved(saved.provider === "mock" ? "모의 AI 모드로 저장했습니다." : "AI API 설정을 저장했습니다.");
       onClose();
     } catch (reason) {
@@ -209,6 +220,20 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
               저장된 API 키 삭제
             </label>
           )}
+          <label className="field history-limit-field">
+            <span><MessagesSquare size={14} />대화 문맥</span>
+            <input
+              type="number"
+              min={0}
+              max={50}
+              value={historyLimitDraft}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setHistoryLimitDraft(Number.isFinite(value) ? Math.min(50, Math.max(0, value)) : 10);
+              }}
+            />
+            <small>AI가 참고할 최근 질문 수입니다. 0으로 설정하면 이전 대화를 보내지 않습니다.</small>
+          </label>
           <p className="settings-note">
             공급자·모델·API 키는 이 컴퓨터의 백엔드 설정 파일에 저장되어 재실행 후에도 유지됩니다.
             API 키는 브라우저 저장소에 기록하지 않습니다.

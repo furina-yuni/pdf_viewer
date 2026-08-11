@@ -41,6 +41,15 @@ describe("Toolbar", () => {
     fireEvent.blur(zoomInput);
     expect(onScale).toHaveBeenCalledWith(1.25);
 
+    fireEvent.change(zoomInput, { target: { value: "113" } });
+    fireEvent.blur(zoomInput);
+    expect(onScale).toHaveBeenLastCalledWith(1.15);
+
+    fireEvent.click(screen.getByRole("button", { name: "확대" }));
+    expect(onScale).toHaveBeenLastCalledWith(1.05);
+    fireEvent.click(screen.getByRole("button", { name: "축소" }));
+    expect(onScale).toHaveBeenLastCalledWith(0.95);
+
     fireEvent.click(screen.getByRole("button", { name: "위 참고 페이지 줄이기" }));
     expect(onBefore).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("button", { name: "위 참고 페이지 늘리기" }));
