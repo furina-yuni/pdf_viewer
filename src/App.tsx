@@ -15,7 +15,7 @@ import { streamSse } from "./lib/sse";
 import { stepZoomScale } from "./lib/zoom";
 import { acquireBackend, type BackendLease } from "./lib/backend";
 import { createDocumentKey, pageBatches } from "./lib/rag";
-import type { ChatMessage, PageText, RagStatus } from "./types";
+import type { AttachedPdfSelection, ChatMessage, PageText, RagStatus } from "./types";
 import type { OpenedPdf, RecentPdf } from "./electron";
 
 function App() {
@@ -45,7 +45,7 @@ function App() {
   const [recentError, setRecentError] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
-  const [selectedTexts, setSelectedTexts] = useState<{ id: string; text: string }[]>([]);
+  const [selectedTexts, setSelectedTexts] = useState<AttachedPdfSelection[]>([]);
   const [busy, setBusy] = useState(false);
   const [documentKey, setDocumentKey] = useState<string | null>(null);
   const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
@@ -127,6 +127,9 @@ function App() {
         appearanceOpen ||
         isEditing
       ) {
+        return;
+      }
+      if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         return;
       }
       if (event.ctrlKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -390,7 +393,9 @@ function App() {
     const pageSnapshot = currentPage;
     const rangeSnapshot = getPageRange(pageSnapshot, document.numPages, before, after);
     const attachedSelection = selectedTexts.length > 0
-      ? selectedTexts.map((item, index) => `[인용 ${index + 1}]\n${item.text}`).join("\n\n")
+      ? selectedTexts
+        .map((item, index) => `[인용 ${index + 1} · p.${item.pageNumber}]\n${item.text}`)
+        .join("\n\n")
       : null;
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -545,10 +550,10 @@ function App() {
           onLoad={handleLoad}
           onScale={setScale}
           onCurrentPage={handleObservedPage}
-          onTextSelection={(text) => {
+          onTextSelection={(selection) => {
             setSelectedTexts((items) => [
               ...items,
-              { id: crypto.randomUUID(), text },
+              { id: crypto.randomUUID(), ...selection },
             ]);
             setNotice("선택한 텍스트를 질문에 첨부했습니다.");
           }}

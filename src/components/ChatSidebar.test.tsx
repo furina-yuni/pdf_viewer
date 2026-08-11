@@ -46,8 +46,8 @@ describe("ChatSidebar", () => {
         messages={[]}
         totalPages={3}
         selectedTexts={[
-          { id: "first", text: "드래그해서 선택한 중요한 문장" },
-          { id: "second", text: "두 번째 인용문" },
+          { id: "first", text: "드래그해서 선택한 중요한 문장", pageNumber: 2 },
+          { id: "second", text: "두 번째 인용문", pageNumber: 3 },
         ]}
         busy={false}
         question=""
@@ -66,6 +66,8 @@ describe("ChatSidebar", () => {
     );
 
     expect(screen.getByText("드래그해서 선택한 중요한 문장")).toBeInTheDocument();
+    expect(screen.getByText("인용 1")).toBeInTheDocument();
+    expect(screen.getByText("2페이지")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "질문 전송" })).toBeInTheDocument();
     expect(screen.queryByText("전송")).not.toBeInTheDocument();
     expect(screen.getByText("두 번째 인용문")).toBeInTheDocument();

@@ -4,12 +4,12 @@ import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
-import type { ChatMessage, RagStatus } from "../types";
+import type { AttachedPdfSelection, ChatMessage, RagStatus } from "../types";
 
 type Props = {
   messages: ChatMessage[];
   totalPages: number;
-  selectedTexts: { id: string; text: string }[];
+  selectedTexts: AttachedPdfSelection[];
   busy: boolean;
   question: string;
   ragStatus: RagStatus | null;
@@ -190,11 +190,12 @@ export function ChatSidebar(props: Props) {
             <div className="selection-attachments" aria-label="첨부한 인용문">
               {props.selectedTexts.map((selection, index) => (
                 <div className="selection-attachment" key={selection.id}>
-                  <div className="selection-attachment-icon">
+                  <div className="selection-attachment-meta">
                     <Quote size={14} />
-                    <span>{index + 1}</span>
+                    <strong>인용 {index + 1}</strong>
+                    <span>{selection.pageNumber}페이지</span>
                   </div>
-                  <p>{selection.text}</p>
+                  <p title={selection.text}>{selection.text}</p>
                   <button
                     type="button"
                     aria-label={`인용 ${index + 1} 제거`}

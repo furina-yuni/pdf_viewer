@@ -3,6 +3,15 @@ export type PageText = {
   text: string;
 };
 
+export type PdfTextSelection = {
+  text: string;
+  pageNumber: number;
+};
+
+export type AttachedPdfSelection = PdfTextSelection & {
+  id: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";

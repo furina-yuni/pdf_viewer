@@ -191,30 +191,52 @@ button { color: inherit; }
 .recent-error { color: #e5a4aa; }
 
 .viewer-scroll { position: relative; overflow: auto; min-width: 0; padding: 0 24px; scroll-behavior: smooth; background: var(--viewer-background, #343941); }
-.viewer-scroll .react-pdf__Page__textContent ::selection {
-  color: transparent;
-  background: rgba(230, 178, 70, 0.34);
-  text-shadow: none;
+.viewer-scroll .react-pdf__Page__textContent {
+  z-index: 3; cursor: text; user-select: text; -webkit-user-select: text;
 }
-.selection-action {
-  position: absolute; z-index: 12; height: 34px; padding: 3px; display: flex; align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px;
-  color: #f5f7fa; background: rgba(31, 38, 49, 0.96);
-  box-shadow: 0 8px 24px rgba(14, 18, 25, 0.28); backdrop-filter: blur(10px);
+.viewer-scroll .react-pdf__Page__textContent ::selection {
+  color: transparent; background: rgba(111, 151, 226, 0.24); text-shadow: none;
+}
+.selection-dock {
+  position: fixed; z-index: 1000; min-width: 0; min-height: 70px; padding: 9px 10px;
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) 32px auto; align-items: center; gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 17px;
+  color: #f7f9fc; background: rgba(30, 37, 48, 0.96);
+  box-shadow: 0 14px 38px rgba(6, 10, 17, 0.38); backdrop-filter: blur(16px);
   animation: selection-action-in 120ms ease-out;
 }
-.selection-action button {
-  height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 6px;
-  border: 0; border-radius: 7px; color: inherit; background: transparent;
-  font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer;
+.selection-dock-mark {
+  width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px;
+  color: #dce8ff; background: rgba(102, 144, 224, 0.2);
 }
-.selection-action button:first-child:hover { background: rgba(255, 255, 255, 0.1); }
-.selection-action .selection-action-close {
-  width: 27px; padding: 0; justify-content: center; color: #aeb6c2;
+.selection-dock-content { min-width: 0; display: grid; gap: 4px; }
+.selection-dock-content strong {
+  color: #dce5f3; font-size: 10px; font-weight: 750; letter-spacing: -0.01em;
 }
-.selection-action .selection-action-close:hover { color: white; background: rgba(255, 255, 255, 0.1); }
+.selection-dock-content p {
+  display: -webkit-box; margin: 0; overflow: hidden; color: #f5f7fb;
+  font-size: 11px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.selection-dock button {
+  border: 0; cursor: pointer; transition: color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+.selection-dock-cancel {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px;
+  color: #9eabba; background: transparent;
+}
+.selection-dock-cancel:hover { color: white; background: rgba(255, 255, 255, 0.09); }
+.selection-dock-attach {
+  height: 36px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 11px !important; color: #17243a; background: #dbe8ff;
+  font-size: 11px; font-weight: 800; white-space: nowrap;
+}
+.selection-dock-attach:hover { background: #edf4ff; transform: translateY(-1px); }
+.selection-dock-invalid {
+  grid-template-columns: 36px minmax(0, 1fr); min-height: 58px; color: #dbe4f1;
+}
+.selection-dock-invalid > strong { font-size: 11px; font-weight: 700; }
 @keyframes selection-action-in {
-  from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .react-pdf__Document { display: flex; flex-direction: column; align-items: center; gap: 22px; }
@@ -345,30 +367,35 @@ button { color: inherit; }
 }
 .composer textarea::placeholder { color: var(--theme-subtle, #89919c); }
 .selection-attachments {
-  display: grid; gap: 6px; max-height: 168px; margin-bottom: 8px; padding-right: 2px;
+  display: grid; gap: 6px; max-height: 146px; margin-bottom: 8px; padding-right: 2px;
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
 }
 .selection-attachment {
-  display: grid; grid-template-columns: 19px minmax(0, 1fr) 25px; align-items: start;
-  gap: 7px; max-height: 92px; padding: 9px; overflow: hidden;
-  border: 1px solid var(--theme-border, #cfd6df); border-radius: 9px;
-  color: var(--theme-muted, #526175); background: var(--surface-background, #eef2f6);
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 25px;
+  grid-template-areas: "meta remove" "preview remove"; align-items: center;
+  column-gap: 8px; row-gap: 3px; min-height: 58px; padding: 8px 8px 8px 10px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-border, #cfd6df) 82%, transparent);
+  border-radius: 11px; color: var(--theme-muted, #526175);
+  background: color-mix(in srgb, var(--surface-background, #eef2f6) 88%, transparent);
 }
-.selection-attachment-icon { position: relative; margin-top: 2px; color: #60718a; }
-.selection-attachment-icon span {
-  position: absolute; right: -3px; bottom: -4px; min-width: 12px; height: 12px; padding: 0 2px;
-  display: grid; place-items: center; border-radius: 6px; color: white; background: #40577b;
-  font-size: 7px; font-weight: 800;
+.selection-attachment-meta {
+  grid-area: meta; min-width: 0; display: flex; align-items: center; gap: 5px;
+  color: var(--theme-muted, #526175); font-size: 10px; line-height: 1.2;
 }
+.selection-attachment-meta svg { flex: 0 0 auto; color: #607ca9; }
+.selection-attachment-meta strong { color: var(--theme-text, #303844); font-size: 10px; font-weight: 750; }
+.selection-attachment-meta span { color: var(--theme-subtle, #89919c); }
 .selection-attachment p {
-  display: -webkit-box; margin: 0; overflow: hidden; font-size: 11px; line-height: 1.5;
-  -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+  grid-area: preview; display: -webkit-box; margin: 0; overflow: hidden;
+  color: var(--theme-muted, #526175); font-size: 10.5px; line-height: 1.4;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2;
 }
 .selection-attachment button {
+  grid-area: remove;
   width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 6px;
-  color: #667386; background: transparent; cursor: pointer;
+  color: var(--theme-subtle, #667386); background: transparent; cursor: pointer;
 }
-.selection-attachment button:hover { background: #dce3eb; }
+.selection-attachment button:hover { color: var(--theme-text, #303844); background: var(--theme-hover, #dce3eb); }
 .send-button {
   flex: 0 0 auto; width: 32px; height: 32px; padding: 0; display: grid; place-items: center;
   border: 0; border-radius: 50%; color: white; background: #283b55; cursor: pointer;
