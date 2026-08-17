@@ -1,7 +1,7 @@
 {
   "name": "study-pdf-ai",
   "private": true,
-  "version": "0.1.7",
+  "version": "0.1.9",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:backend\" \"npm:dev:frontend\"",
@@ -14,6 +14,15 @@
     "electron:build": "npm run build && npm run build:backend && electron-builder"
   },
   "dependencies": {
+    "@embedpdf/core": "^2.15.0",
+    "@embedpdf/engines": "^2.15.0",
+    "@embedpdf/plugin-document-manager": "^2.15.0",
+    "@embedpdf/plugin-interaction-manager": "^2.15.0",
+    "@embedpdf/plugin-render": "^2.15.0",
+    "@embedpdf/plugin-scroll": "^2.15.0",
+    "@embedpdf/plugin-selection": "^2.15.0",
+    "@embedpdf/plugin-viewport": "^2.15.0",
+    "@embedpdf/plugin-zoom": "^2.15.0",
     "@vitejs/plugin-react": "^4.4.1",
     "katex": "^0.18.1",
     "lucide-react": "^0.468.0",
